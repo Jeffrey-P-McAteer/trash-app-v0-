@@ -1,0 +1,8 @@
+__pycache__
+*.pyc
+pyenv
+out
+bin
+data
+obj
+model-data
