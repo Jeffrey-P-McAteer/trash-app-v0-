@@ -65,7 +65,9 @@ def main(args=sys.argv):
   # See https://docs.ultralytics.com/tasks/detect/#models to download model files
   model_data_dir = os.path.join(os.path.dirname(__file__), 'model-data')
   os.makedirs(model_data_dir, exist_ok=True)
-  license_plate_model = ultralytics.YOLO(os.path.join(model_data_dir, 'yolov8x.pt'))
+  model_path = os.environ.get('MODEL_PATH', os.path.join(model_data_dir, 'yolov8x.pt') )
+  print(f'Using MODEL_PATH = {model_path}')
+  license_plate_model = ultralytics.YOLO(model_path)
 
   vidcap = None
   if len(args) > 1 and os.path.exists(args[1]):
@@ -107,43 +109,47 @@ def main(args=sys.argv):
 
 
 def process(model, frame):
-  results = model(frame)
+  results = model(frame, verbose=False)
+
+  # sort result boxes by confidence high -> low, render first 6 items.
 
   for result in results:
     #print(f'result = {result}')
-    for result_box in result.boxes:
-      if result_box.conf > 0.5:
-        #print(f'result_box = {result_box}')
-        x,y,w,h = result_box.xywh[0]
-        x,y,w,h = float(x),float(y),float(w),float(h) # de-tensorify
-        x,y,w,h = int(x),int(y),int(w),int(h) # remove decimals b/c CV hates those
+    boxes = [x for x in result.boxes]
+    boxes.sort(key=lambda result_box: float(result_box.conf), reverse=False)
+    for result_box in boxes[:min(6, len(boxes))]:
+      confidence = float(result_box.conf)
+      #print(f'result_box = {result_box}')
+      x,y,w,h = result_box.xywh[0]
+      x,y,w,h = float(x),float(y),float(w),float(h) # de-tensorify
+      x,y,w,h = int(x),int(y),int(w),int(h) # remove decimals b/c CV hates those
 
-        # x,y is the center of the box, so move back by 1/4 the box
-        x -= int(w/2)
-        y -= int(h/2)
+      # x,y is the center of the box, so move back by 1/4 the box
+      x -= int(w/2)
+      y -= int(h/2)
 
-        box_cls = int(float(result_box.cls))
-        cls_name = result.names.get(box_cls, 'UNKNOWN')
+      box_cls = int(float(result_box.cls))
+      cls_name = result.names.get(box_cls, 'UNKNOWN')+f' {confidence:.1f}'
 
-        cv2.rectangle(frame, (x, y), (x+w, y+h), color=(255,0,0), thickness=2)
-        cv2.putText(frame, cls_name,
-          (x, y+12),
-          cv2.FONT_HERSHEY_SIMPLEX,
-          1,
-          (0,0,0),
-          3,
-          2
-        )
-        cv2.putText(frame, cls_name,
-          (x, y+12),
-          cv2.FONT_HERSHEY_SIMPLEX,
-          1,
-          (0,0,255),
-          2,
-          2
-        )
+      cv2.rectangle(frame, (x, y), (x+w, y+h), color=(255,0,0), thickness=2)
+      cv2.putText(frame, cls_name,
+        (x, y+12),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0,0,0),
+        3,
+        2
+      )
+      cv2.putText(frame, cls_name,
+        (x, y+12),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0,0,255),
+        2,
+        2
+      )
 
-  print('=' * 20)
+  # print('=' * 20)
 
   return frame
 
