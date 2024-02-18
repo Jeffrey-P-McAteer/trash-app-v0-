@@ -86,7 +86,9 @@ def main(args=sys.argv):
     success, frame = vidcap.read()
     if not success:
       break
+
     # Process frame
+    frame = process(license_plate_model, frame)
 
     cv2.imshow('floatme', frame)
 
@@ -104,6 +106,46 @@ def main(args=sys.argv):
     pass
 
 
+def process(model, frame):
+  results = model(frame)
+
+  for result in results:
+    #print(f'result = {result}')
+    for result_box in result.boxes:
+      if result_box.conf > 0.5:
+        #print(f'result_box = {result_box}')
+        x,y,w,h = result_box.xywh[0]
+        x,y,w,h = float(x),float(y),float(w),float(h) # de-tensorify
+        x,y,w,h = int(x),int(y),int(w),int(h) # remove decimals b/c CV hates those
+
+        # x,y is the center of the box, so move back by 1/4 the box
+        x -= int(w/2)
+        y -= int(h/2)
+
+        box_cls = int(float(result_box.cls))
+        cls_name = result.names.get(box_cls, 'UNKNOWN')
+
+        cv2.rectangle(frame, (x, y), (x+w, y+h), color=(255,0,0), thickness=2)
+        cv2.putText(frame, cls_name,
+          (x, y+12),
+          cv2.FONT_HERSHEY_SIMPLEX,
+          1,
+          (0,0,0),
+          3,
+          2
+        )
+        cv2.putText(frame, cls_name,
+          (x, y+12),
+          cv2.FONT_HERSHEY_SIMPLEX,
+          1,
+          (0,0,255),
+          2,
+          2
+        )
+
+  print('=' * 20)
+
+  return frame
 
 
 if __name__ == '__main__':
